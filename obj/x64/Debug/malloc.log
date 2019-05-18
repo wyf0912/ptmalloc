@@ -1,0 +1,30 @@
+﻿  正在验证源
+  正在将源远程复制到“127.0.0.1”
+  正在验证体系结构
+  正在启动远程生成
+  正在编译源:
+  bins.cpp
+C:\Users\Fei\source\repos\malloc\malloc\bins.cpp(18,82): error : expected primary-expression before ‘)’ token
+C:\Users\Fei\source\repos\malloc\malloc\bins.cpp(18,82): error :    if (!in_smallbin_range(P->size) && __builtin_expect(P->fd_nextsize != NULL, 0))) {
+C:\Users\Fei\source\repos\malloc\malloc\bins.cpp(18,82): error :                                                                                   ^
+  hooks.cpp
+  main.cpp
+  malloc.cpp
+C:\Users\Fei\source\repos\malloc\malloc\malloc.cpp(5,1): warning : no return statement in function returning non-void [-Wreturn-type]
+C:\Users\Fei\source\repos\malloc\malloc\malloc.cpp(5,1): warning :  }
+C:\Users\Fei\source\repos\malloc\malloc\malloc.cpp(5,1): warning :  ^
+C:\Users\Fei\source\repos\malloc\malloc\base.h(62,38): error : ‘malloc_state {aka struct malloc_state}’ has no member named ‘flags’
+C:\Users\Fei\source\repos\malloc\malloc\base.h(62,38): error :  #define set_noncontiguous(M)   ((M)->flags |=  NONCONTIGUOUS_BIT)
+C:\Users\Fei\source\repos\malloc\malloc\base.h(62,38): error :                                       ^
+C:\Users\Fei\source\repos\malloc\malloc\malloc.cpp(26,3): message : in expansion of macro ‘set_noncontiguous’
+C:\Users\Fei\source\repos\malloc\malloc\malloc.cpp(26,3): message :    set_noncontiguous(av);
+C:\Users\Fei\source\repos\malloc\malloc\malloc.cpp(26,3): message :    ^~~~~~~~~~~~~~~~~
+C:\Users\Fei\source\repos\malloc\malloc\malloc.cpp(15,13): warning : ‘void malloc_init_state(mstate)’ defined but not used [-Wunused-function]
+C:\Users\Fei\source\repos\malloc\malloc\malloc.cpp(15,13): warning :  static void malloc_init_state(mstate av) {
+C:\Users\Fei\source\repos\malloc\malloc\malloc.cpp(15,13): warning :              ^~~~~~~~~~~~~~~~~
+C:\Users\Fei\source\repos\malloc\malloc\malloc.h(9,19): warning : ‘mp_’ defined but not used [-Wunused-variable]
+C:\Users\Fei\source\repos\malloc\malloc\malloc.h(9,19): warning :  static malloc_par mp_;
+C:\Users\Fei\source\repos\malloc\malloc\malloc.h(9,19): warning :                    ^~~
+C:\Users\Fei\source\repos\malloc\malloc\malloc.h(7,16): warning : ‘list_lock’ defined but not used [-Wunused-variable]
+C:\Users\Fei\source\repos\malloc\malloc\malloc.h(7,16): warning :  static mutex_t list_lock;
+C:\Users\Fei\source\repos\malloc\malloc\malloc.h(7,16): warning :                 ^~~~~~~~~

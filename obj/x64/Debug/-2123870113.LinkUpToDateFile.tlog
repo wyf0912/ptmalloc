@@ -1,0 +1,1 @@
+g++ -o "/home/fei/projects/malloc/../malloc/bin/x64/Debug/malloc.out" -Wl,--no-undefined -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack /home/fei/projects/malloc/../malloc/obj/x64/Debug/bins.o /home/fei/projects/malloc/../malloc/obj/x64/Debug/hooks.o /home/fei/projects/malloc/../malloc/obj/x64/Debug/main.o /home/fei/projects/malloc/../malloc/obj/x64/Debug/malloc.o
