@@ -16,6 +16,7 @@
 //将请求字节填充为可用大小，溢出时返回非零
 #define request2size(req) (((req)+SIZE_SZ + MALLOC_ALIGN_MASK < MINSIZE) ?  MINSIZE : ((req)+SIZE_SZ + MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK)
 
+
 #endif // !ALIGN_H
 
 

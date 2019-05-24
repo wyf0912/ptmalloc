@@ -1,4 +1,3 @@
-#pragma once
 #ifndef BINS_H
 #define BINS_H
 #include "align.h"
@@ -12,11 +11,16 @@
 ((((unsigned long)(sz)) >> 18) <= 2) ? 124 + (((unsigned long)(sz)) >> 18) :  \
 126)
 
-
+mbinptr bin_at(mstate m, int i);
+//mbinptr top(a)
 /* addressing -- note that bin_at(0) does not exist */
-#define bin_at(m, i) (mbinptr) (((char *) &((m)->bins[((i) - 1) * 2])) - offsetof (struct malloc_chunk, fd)) 
+
+//#define bin_at(m, i) (mbinptr) (((char *) &((m)->bins[((i) - 1) * 2])) - offsetof (struct malloc_chunk, fd)) 
+#define top(a) (bin_at(a,0)->fd) 
+#define first(b) ((b)->fd)
+#define last(b)  ((b)->bk)
 #define in_smallbin_range(sz) ((unsigned long)(sz) < (unsigned long)MIN_LARGE_SIZE) 
-#define smallbin_index(sz) ((unsigned)(sz)) >> 4) 
+#define smallbin_index(sz) (((unsigned)(sz)) >> 4) 
 
 #define largebin_index(sz) (largebin_index_64 (sz)) 
 

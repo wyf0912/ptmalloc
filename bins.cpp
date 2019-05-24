@@ -4,9 +4,11 @@
 
 /* The otherwise unindexable 1-bin is used to hold unsorted chunks. */
 
-
+mbinptr bin_at(mstate m, int i) {
+	return (mbinptr)(((char*) & ((m)->bins[((i)-1) * 2])) - offsetof(struct malloc_chunk, fd));
+}
 /* Take a chunk off a bin list */
-void unlink(mchunkptr P, mchunkptr BK, mchunkptr FD) { 
+void malloc_unlink(mchunkptr P, mchunkptr BK, mchunkptr FD) { 
 	FD = P->fd; 
 	BK = P->bk; 
 	if (__builtin_expect(FD->bk != P || BK->fd != P, 0))
@@ -15,7 +17,7 @@ void unlink(mchunkptr P, mchunkptr BK, mchunkptr FD) {
 	else { 
 		FD->bk = BK; 
 		BK->fd = FD; 
-		if (!in_smallbin_range(P->size) && __builtin_expect(P->fd_nextsize != NULL, 0))) {
+		if (!in_smallbin_range(P->size) && __builtin_expect(P->fd_nextsize != NULL, 0)) {
 			assert(P->fd_nextsize->bk_nextsize == P);
 			assert(P->bk_nextsize->fd_nextsize == P);
 			if (FD->fd_nextsize == NULL) {

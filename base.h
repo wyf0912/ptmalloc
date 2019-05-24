@@ -20,11 +20,23 @@
 /* Conservatively use 32 bits per map word, even if on 64bit system */
 
 
-
-
+/* mutex */
 typedef pthread_mutex_t mutex_t;
 
+#define MUTEX_INITIALIZER          PTHREAD_MUTEX_INITIALIZER
+#define mutex_init(m)              pthread_mutex_init(m, NULL)
+#define mutex_lock(m)              pthread_mutex_lock(m)
+#define mutex_trylock(m)           pthread_mutex_trylock(m)
+#define mutex_unlock(m)            pthread_mutex_unlock(m)
+//线程变量
+typedef pthread_key_t tsd_key_t;
+#define tsd_key_create(key, destr) pthread_key_create(key, destr)
+#define tsd_setspecific(key, data) pthread_setspecific(key, data)
+#define tsd_getspecific(key, vptr) (vptr = pthread_getspecific(key))
+
 #define HEAP_MAX_SIZE (64*1024*1024)
+
+
 
 typedef struct malloc_chunk
 {
@@ -50,10 +62,32 @@ typedef struct malloc_state
 	mchunkptr bins[NBINS * 2 - 2];
 	unsigned int binmap[BINMAPSIZE];
 	malloc_state* next;
+	malloc_state* next_free;
+	/* Memory allocated from the system in this arena.  */
+	INTERNAL_SIZE_T system_mem;   
+	INTERNAL_SIZE_T max_system_mem;
 }malloc_state;
 typedef malloc_state *mstate;
 
 typedef struct malloc_par {
+	unsigned long trim_threshold;
+	INTERNAL_SIZE_T top_pad;
+	INTERNAL_SIZE_T mmap_threshold;
+	INTERNAL_SIZE_T arena_test; //小于这个阈值如果有锁直接建新的arean
+	INTERNAL_SIZE_T arena_max; //最大分配区个数
+	 /* Memory map support */
+	int n_mmaps;
+	int n_mmaps_max;
+	int max_n_mmaps;
+	/* the mmap_threshold is dynamic, until the user sets
+	  it manually, at which point we need to disable any
+	  dynamic behavior. */
+	int no_dyn_threshold;
+
+	/* Cache malloc_getpagesize */
+	unsigned int pagesize;
+	/* First address handed out by MORECORE/sbrk.  */
+	char* sbrk_base;
 
 }malloc_par;
 
