@@ -12,6 +12,7 @@
 126)
 
 mbinptr bin_at(mstate m, int i);
+void malloc_unlink(mchunkptr P, mchunkptr BK, mchunkptr FD);
 //mbinptr top(a)
 /* addressing -- note that bin_at(0) does not exist */
 
@@ -26,6 +27,7 @@ mbinptr bin_at(mstate m, int i);
 
 #define bin_index(sz) ((in_smallbin_range(sz)) ? smallbin_index(sz) : largebin_index(sz)) 
 
+#define next_bin(b)  ((mbinptr)((char*)(b) + (sizeof(mchunkptr)<<1)))
 #define fastbin(ar_ptr, idx) ((ar_ptr)->fastbinsY[idx])
 /* offset 2 to use otherwise unindexable first 2 bins */
 #define MAX_FAST_SIZE (80 * SIZE_SZ / 4)

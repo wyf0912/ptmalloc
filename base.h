@@ -9,7 +9,8 @@
 
 
 #define NBINS             128 
-#define NSMALLBINS         64 
+#define NSMALLBINS         64
+#define FASTBIN_CONSOLIDATION_THRESHOLD (65536UL)
 #define SMALLBIN_WIDTH    (MALLOC_ALIGNMENT)
 #define MIN_LARGE_SIZE    (NSMALLBINS * SMALLBIN_WIDTH) 
 
@@ -17,8 +18,6 @@
 #define BINMAPSHIFT      5  
 #define BITSPERMAP       (1U << BINMAPSHIFT)
 #define BINMAPSIZE       (NBINS / BITSPERMAP) 
-/* Conservatively use 32 bits per map word, even if on 64bit system */
-
 
 /* mutex */
 typedef pthread_mutex_t mutex_t;
@@ -86,6 +85,9 @@ typedef struct malloc_par {
 
 	/* Cache malloc_getpagesize */
 	unsigned int pagesize;
+	/* Statistics */
+	INTERNAL_SIZE_T  mmapped_mem;
+	INTERNAL_SIZE_T  max_mmapped_mem;
 	/* First address handed out by MORECORE/sbrk.  */
 	char* sbrk_base;
 
