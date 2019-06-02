@@ -207,7 +207,7 @@ static void malloc_consolidate(mstate av)
 	}
 }
 
-static void* _int_malloc(mstate av, size_t bytes) {
+mm_info _int_malloc(mstate av, size_t bytes) {
 	INTERNAL_SIZE_T nb;               /* normalized request size */
 	unsigned int    idx;              /* associated bin index */
 	mbinptr         bin;              /* associated bin */
@@ -222,6 +222,8 @@ static void* _int_malloc(mstate av, size_t bytes) {
 	mchunkptr       fwd;              /* misc temp for linking */
 	mchunkptr       bck;              /* misc temp for linking */
 	const char* errstr = NULL;
+	mm_info mm;
+	mm.mm_ptr = NULL;
 	nb = request2size(bytes);
 	if ((unsigned long)(nb) <= (unsigned long)(get_max_fast())) {
 		idx = fastbin_index(nb);
@@ -231,12 +233,15 @@ static void* _int_malloc(mstate av, size_t bytes) {
 			if (__builtin_expect(fastbin_index(chunksize(victim)) != idx, 0))
 			{
 				printf("malloc(): memory corruption (fast)");
-				return NULL;
+				return mm;
 			}
 			* fb = victim->fd;
 			//check_remalloced_chunk(av, victim, nb);5
 			void* p = chunk2mem(victim);
-			return p;
+			mm.mm_ptr = p;
+			mm.type = FROM_OLD_CHUNK;
+			mm.remainder_ptr = victim;
+			return mm;
 		}
 	}
 	if (in_smallbin_range(nb)) {
@@ -249,15 +254,18 @@ static void* _int_malloc(mstate av, size_t bytes) {
 				bck = victim->bk;         
 				if (__builtin_expect(bck->fd != victim, 0)) {
 					printf("malloc(): smallbin double linked list corrupted");             
-					return NULL;
+					return mm;
 				}         
 				set_inuse_bit_at_offset(victim, nb);         
 				bin->bk = bck;         
 				bck->fd = bin;
 				if (av != &main_arena)           
 					victim->size |= NON_MAIN_ARENA;       
-					void* p = chunk2mem(victim);                 
-					return p;
+					void* p = chunk2mem(victim);
+					mm.mm_ptr = p;
+					mm.type = FROM_OLD_CHUNK;
+					mm.remainder_ptr = victim;
+					return mm;
 			}
 		}
 	}
@@ -277,20 +285,18 @@ static void* _int_malloc(mstate av, size_t bytes) {
 
 			/*
 		   If a small request, try to use last remainder if it is the
-		   only chunk in unsorted bin.  This helps promote locality for
-		   runs of consecutive small requests. This is the only
-		   exception to best-fit, and applies only when there is
-		   no exact fit for a small chunk.
+		   only chunk in unsorted bin.  
 			*/
-
 			if (in_smallbin_range(nb) &&
 				bck == unsorted_chunks(av) &&
 				victim == av->last_remainder &&
 				(unsigned long)(size) > (unsigned long)(nb + MINSIZE)) {
 
 				/* split and reattach remainder */
+				mm.type = FROM_SPLIT;
 				remainder_size = size - nb;
-				remainder = chunk_at_offset(victim, nb);
+				remainder = chunk_at_offset(victim, nb);       
+				mm.remainder_ptr = remainder;
 				unsorted_chunks(av)->bk = unsorted_chunks(av)->fd = remainder;
 				av->last_remainder = remainder;
 				remainder->bk = remainder->fd = unsorted_chunks(av);
@@ -299,7 +305,6 @@ static void* _int_malloc(mstate av, size_t bytes) {
 					remainder->fd_nextsize = NULL;
 					remainder->bk_nextsize = NULL;
 				}
-
 				set_head(victim, nb | PREV_INUSE |
 					(av != &main_arena ? NON_MAIN_ARENA : 0));
 				set_head(remainder, remainder_size | PREV_INUSE);
@@ -307,7 +312,8 @@ static void* _int_malloc(mstate av, size_t bytes) {
 
 				//check_malloced_chunk(av, victim, nb);
 				void* p = chunk2mem(victim);
-				return p;
+				mm.mm_ptr = p;
+				return mm;
 			}
 
 			/* remove from unsorted list */
@@ -321,8 +327,10 @@ static void* _int_malloc(mstate av, size_t bytes) {
 				if (av != &main_arena)
 					victim->size |= NON_MAIN_ARENA;
 				//check_malloced_chunk(av, victim, nb);
+				mm.type = FROM_OLD_CHUNK;
 				void* p = chunk2mem(victim);
-				return p;
+				mm.mm_ptr = p;
+				return mm;
 			}
 
 			/* place chunk in bin */
@@ -352,13 +360,10 @@ static void* _int_malloc(mstate av, size_t bytes) {
 						fwd->fd->bk_nextsize = victim->bk_nextsize->fd_nextsize = victim;
 					}
 					else {
-						assert((fwd->size & NON_MAIN_ARENA) == 0);
 						while ((unsigned long)size < fwd->size)
 						{
 							fwd = fwd->fd_nextsize;
-							assert((fwd->size & NON_MAIN_ARENA) == 0);
 						}
-
 						if ((unsigned long)size == (unsigned long)fwd->size)
 							/* Always insert in the second position.  */
 							fwd = fwd->fd;
@@ -416,11 +421,13 @@ static void* _int_malloc(mstate av, size_t bytes) {
 					/* We cannot assume the unsorted list is empty and therefore
 					   have to perform a complete insert here.  */
 					bck = unsorted_chunks(av);
+					mm.type = FROM_SPLIT;
+					mm.remainder_ptr = remainder;
 					fwd = bck->fd;
 					if (__builtin_expect(fwd->bk != bck, 0))
 					{
 						printf("malloc(): corrupted unsorted chunks");
-						return NULL;
+						return mm;
 					}
 					remainder->bk = bck;
 					remainder->fd = fwd;
@@ -438,7 +445,8 @@ static void* _int_malloc(mstate av, size_t bytes) {
 				}
 				//check_malloced_chunk(av, victim, nb);
 				void* p = chunk2mem(victim);
-				return p;
+				mm.mm_ptr = p;
+				return mm;
 			}
 		}
 
@@ -499,7 +507,8 @@ static void* _int_malloc(mstate av, size_t bytes) {
 				/* Split */
 				else {
 					remainder = chunk_at_offset(victim, nb);
-
+					mm.type = FROM_SPLIT;
+					mm.remainder_ptr = remainder;
 					/* We cannot assume the unsorted list is empty and therefore
 					   have to perform a complete insert here.  */
 					bck = unsorted_chunks(av);
@@ -507,7 +516,7 @@ static void* _int_malloc(mstate av, size_t bytes) {
 					if (__builtin_expect(fwd->bk != bck, 0))
 					{
 						printf("malloc(): corrupted unsorted chunks 2");
-						return NULL;
+						return mm;
 					}
 					remainder->bk = bck;
 					remainder->fd = fwd;
@@ -529,7 +538,8 @@ static void* _int_malloc(mstate av, size_t bytes) {
 				}
 				//check_malloced_chunk(av, victim, nb);
 				void* p = chunk2mem(victim);
-				return p;
+				mm.mm_ptr = p;
+				return mm;
 			}
 		}
 
@@ -540,6 +550,8 @@ static void* _int_malloc(mstate av, size_t bytes) {
 		if ((unsigned long)(size) >= (unsigned long)(nb + MINSIZE)) {
 			remainder_size = size - nb;
 			remainder = chunk_at_offset(victim, nb);
+			mm.remainder_ptr = remainder;
+			mm.type = FROM_SPLIT;
 			av->top = remainder;
 			set_head(victim, nb | PREV_INUSE |
 				(av != &main_arena ? NON_MAIN_ARENA : 0));
@@ -547,7 +559,8 @@ static void* _int_malloc(mstate av, size_t bytes) {
 
 			//check_malloced_chunk(av, victim, nb);
 			void* p = chunk2mem(victim);
-			return p;
+			mm.mm_ptr = p;
+			return mm;
 		}
 
 		else if (have_fastchunks(av)) {
@@ -556,14 +569,14 @@ static void* _int_malloc(mstate av, size_t bytes) {
 			idx = smallbin_index(nb); /* restore original bin index */
 		}
 		else {
-			void* p = sYSMALLOc(nb, av);
-			return p;
+			mm = sYSMALLOc(nb, av);
+			return mm;
 		}
 	}
 }
 
 
-static void* sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
+mm_info sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
 {
 	mchunkptr       old_top;        /* incoming value of av->top */
 	INTERNAL_SIZE_T old_size;       /* its size */
@@ -587,7 +600,8 @@ static void* sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
 
 	size_t          pagemask = mp_.pagesize - 1;
 	bool            tried_mmap = false;
-
+	mm_info         mmInfo;
+	mmInfo.mm_ptr = NULL;
 	/*
 	  If have mmap, and the request size meets the mmap threshold, and
 	  the system supports mmap, and there are few enough currently
@@ -646,8 +660,9 @@ static void* sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
 				if (sum > (unsigned long)(mp_.max_mmapped_mem))
 					mp_.max_mmapped_mem = sum;
 				//check_chunk(av, p);
-
-				return chunk2mem(p);
+				mmInfo.type = FROM_MMAP;
+				mmInfo.mm_ptr = chunk2mem(p);
+				return mmInfo;
 			}
 		}
 	}
@@ -714,7 +729,7 @@ static void* sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
 			size -= old_size;
 		size = (size + pagemask) & ~pagemask;
 		if (size > 0)
-			brk = (char*)(sbrk(size));
+			brk = (char*)(sbrk(size)); //expand the top of the heap;
 
 		if(brk == (char*)(MORECORE_FAILURE)) {
 			/* Cannot merge with old top, so add its size back in */
@@ -742,7 +757,7 @@ static void* sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
 			}
 		}
 
-		if (brk != (char*)(MORECORE_FAILURE)) {
+		if (brk != (char*)(MORECORE_FAILURE)) { //success
 			if (mp_.sbrk_base == 0)
 				mp_.sbrk_base = brk;
 			av->system_mem += size;
@@ -837,12 +852,15 @@ static void* sYSMALLOc(INTERNAL_SIZE_T nb, mstate av)
 		set_head(p, nb | PREV_INUSE | (av != &main_arena ? NON_MAIN_ARENA : 0));
 		set_head(remainder, remainder_size | PREV_INUSE);
 		//check_malloced_chunk(av, p, nb);
-		return chunk2mem(p);
+		mmInfo.mm_ptr = chunk2mem(p);
+		mmInfo.type = FROM_SPLIT;
+		mmInfo.remainder_ptr = remainder; //ÓÐÎÊÌâ
+		return mmInfo;
 	}
 
 	/* catch all failure paths */
 	errno = ENOMEM;
-	return 0;
+	return mmInfo;
 }
 
 static void _int_free(mstate av, mchunkptr p)
@@ -1155,6 +1173,7 @@ static void malloc_init_state(mstate av) {
 		bin = bin_at(av,i);
 		bin->fd = bin->bk = bin;
 	}
+	//av->treetop = NULL;
 	av->top = initial_top(av);
 	if (av == &main_arena){
 		set_max_fast(DEFAULT_MAXFAST);
@@ -1232,26 +1251,55 @@ static heap_info_ptr new_heap(size_t size, size_t top_pad)
 	return h;
 }
 
-
 void* malloc(int bytes) {
+	mm_info mm;
+	mchunkptr p;
 	mstate ar_ptr;
+	mm = _malloc(bytes);
+	if (mm.mm_ptr = NULL)
+		return NULL;
+	p = mem2chunk(mm.mm_ptr);
+	if (chunk_is_mmapped(p)) // if chunk from mmap, return
+	{
+		return mm.mm_ptr;
+	}
+	ar_ptr = arena_for_chunk(p);
+	(void)mutex_lock(&ar_ptr->mutex);
+	if (ar_ptr->treetop.lf == NULL && ar_ptr->treetop.rt == NULL) {//without inialization
+		if (mm.type = FROM_SPLIT) {
+			ar_ptr->treetop.lf = 
+		}
+		treeNode node;
+		node.wait_free = false;
+	}
+	(void)mutex_unlock(&ar_ptr->mutex);
+}
+void* simple_malloc(int bytes) {
+	return _malloc(bytes).mm_ptr;
+}
+mm_info _malloc(int bytes) {
+	mstate ar_ptr;
+	mm_info mm;
+	mm.mm_ptr = NULL;
 	void* victim;
 	if (__malloc_initialized <= 0)
 		ptmalloc_init();
 	if (__builtin_expect(bytes < 0,0))
-		return NULL;
+		return mm;
 	ar_ptr=arena_lookup();
 	arena_lock(ar_ptr, bytes);
 	if (!ar_ptr)
-		return 0;
-	victim = _int_malloc(ar_ptr, bytes);
+		return mm;
+	mm = _int_malloc(ar_ptr, bytes);
+	victim = mm.mm_ptr;
 	if (!victim) {
 		/* Maybe the failure is due to running out of mmapped areas. */
 		if (ar_ptr != &main_arena) {
 			(void)mutex_unlock(&ar_ptr->mutex);
 			ar_ptr = &main_arena;
 			(void)mutex_lock(&ar_ptr->mutex);
-			victim = _int_malloc(ar_ptr, bytes);
+			mm = _int_malloc(ar_ptr, bytes);
+			victim = mm.mm_ptr;
 			(void)mutex_unlock(&ar_ptr->mutex);
 		}
 		else {
@@ -1259,14 +1307,15 @@ void* malloc(int bytes) {
 			ar_ptr = arean_get2((ar_ptr->next ? ar_ptr : 0, bytes));
 			(void)mutex_unlock(&main_arena.mutex);
 			if (ar_ptr) {
-				victim = _int_malloc(ar_ptr, bytes);
+				mm = _int_malloc(ar_ptr, bytes);
+				victim = mm.mm_ptr;
 				(void)mutex_unlock(&ar_ptr->mutex);
 			}
 		}
 	}
 	else
 		(void)mutex_unlock(&ar_ptr->mutex);
-	return victim;
+	return mm;
 }
 
 static int sYSTRIm(size_t pad, mstate av)

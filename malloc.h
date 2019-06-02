@@ -18,6 +18,7 @@ static int global_max_fast;
 static int nareans=0;
 static int __malloc_initialized = 0;
 
+mm_info _malloc(int n);
 void* malloc(int n);
 void free(void* ptr);
 #define arena_for_chunk(ptr) \
@@ -45,7 +46,7 @@ typedef pthread_t thread_id;
 static mstate arean_get2(size_t size);
 static heap_info_ptr new_heap(size_t size, size_t top_pad);
 static void malloc_init_state(mstate av);
-static void* sYSMALLOc(INTERNAL_SIZE_T nb, mstate av);
+static mm_info sYSMALLOc(INTERNAL_SIZE_T nb, mstate av);
 static int grow_heap(heap_info* h, long diff);
 static void _int_free(mstate av, mchunkptr p);
 static void ptmalloc_init_minimal();

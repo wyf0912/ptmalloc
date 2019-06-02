@@ -43,6 +43,9 @@ typedef struct malloc_chunk
 	INTERNAL_SIZE_T size;      /* Size in bytes, including overhead. */
 	struct malloc_chunk* fd;   /* double links -- used only if free. */
 	struct malloc_chunk* bk;
+	//struct malloc_chunk* lf; /*left child*/
+	//struct malloc_chunk* rt; /*right child*/
+	//struct malloc_chunk* parent; /*father chunk*/
 	/* Only used for large blocks: pointer to next larger size.  */
   /* 只在large块时使用：指向下一个更大大小的指针 */
 	struct malloc_chunk* fd_nextsize; /* double links -- used only if free. */
@@ -50,6 +53,15 @@ typedef struct malloc_chunk
 }malloc_chunk;
 typedef malloc_chunk* mchunkptr;
 typedef malloc_chunk* mbinptr, * mfastbinptr;
+
+#define FROM_SPLIT 3
+#define FROM_OLD_CHUNK 4
+#define FROM_MMAP 5
+typedef struct mm_info {
+	void* mm_ptr;
+	int type;
+	malloc_chunk *remainder_ptr;
+}mm_info;
 
 typedef struct malloc_state
 {
@@ -59,6 +71,7 @@ typedef struct malloc_state
 	mchunkptr top;
 	mchunkptr last_remainder;
 	mchunkptr bins[NBINS * 2 - 2];
+	treeNode treetop;
 	unsigned int binmap[BINMAPSIZE];
 	malloc_state* next;
 	malloc_state* next_free;
@@ -67,6 +80,14 @@ typedef struct malloc_state
 	INTERNAL_SIZE_T max_system_mem;
 }malloc_state;
 typedef malloc_state *mstate;
+
+typedef struct treeNode{
+	treeNode * lf;//叶子结点空间复用
+	treeNode * rt; 
+	mchunkptr chunk;
+	char wait_free;
+} treeNode;
+typedef treeNode* treeNodePtr;
 
 typedef struct malloc_par {
 	unsigned long trim_threshold;
