@@ -1289,17 +1289,14 @@ static mchunkptr remainder_chunk(mchunkptr p) {
 	if (prev_inuse(p1)) {
 		p2 = next_chunk(p1);
 		if (prev_inuse(p2)) {
+			if (p2 == arena_for_chunk(p)->top) 
+				return p2;
 			p3 = next_chunk(p2);
 			//p4 = next_chunk(p3);
-			try {
-				if (prev_inuse(p3))
-					return NULL;
-				else
-					return p2;
-			}
-			catch(...){
+			if (prev_inuse(p3))
+				return NULL;
+			else
 				return p2;
-			}
 		}
 		else
 			return p1;
