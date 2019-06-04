@@ -1251,12 +1251,69 @@ static heap_info_ptr new_heap(size_t size, size_t top_pad)
 	return h;
 }
 
+/* Find the treeNode with the specific chunk*/
+static treeNodePtr find_tree_node(mchunkptr p) {
+	mstate ar_ptr;
+	ar_ptr = arena_for_chunk(p);
+	treeNodePtr current;
+	current = &(ar_ptr->treetop);
+	while (!(current->lf == NULL && current->rt == NULL)) {
+		if (p >= current->lf->chunk&&p<current->rt->chunk) {
+			current = current->lf;
+		}
+		else if(p>=current->rt->chunk){
+			current = current->rt;
+		}
+	}
+	if (current->chunk == p)
+		return current;
+	return NULL;
+}
+/* Find the remainder_chunk (Because the tree node may use the remainder chunk */
+static mchunkptr remainder_chunk(mchunkptr p) {
+	//if (prev_inuse(next_chunk(p))) { // current in use
+	//	if (prev_inuse(next_chunk(next_chunk(p)))) //next in use
+	//	{
+	//		if (prev_inuse(next_chunk(next_chunk(next_chunk(p))))) //next next in use
+	//			return NULL; //Maybe the remainder chunk is used up by treeNode
+	//		else {
+	//			return next_chunk(next_chunk(p));
+	//		}
+	//	}
+	//	else
+	//		return next_chunk(p);
+	//}
+	//return p;
+	mchunkptr p1, p2, p3;//, p4;//For easy debug
+	p1 = next_chunk(p);
+	if (prev_inuse(p1)) {
+		p2 = next_chunk(p1);
+		if (prev_inuse(p2)) {
+			p3 = next_chunk(p2);
+			//p4 = next_chunk(p3);
+			try {
+				if (prev_inuse(p3))
+					return NULL;
+				else
+					return p2;
+			}
+			catch(...){
+				return p2;
+			}
+		}
+		else
+			return p1;
+	}
+	else
+		return p;
+}
 void* malloc(int bytes) {
 	mm_info mm;
 	mchunkptr p;
 	mstate ar_ptr;
+	treeNodePtr node;
 	mm = _malloc(bytes);
-	if (mm.mm_ptr = NULL)
+	if (mm.mm_ptr == NULL)
 		return NULL;
 	p = mem2chunk(mm.mm_ptr);
 	if (chunk_is_mmapped(p)) // if chunk from mmap, return
@@ -1264,15 +1321,20 @@ void* malloc(int bytes) {
 		return mm.mm_ptr;
 	}
 	ar_ptr = arena_for_chunk(p);
-	(void)mutex_lock(&ar_ptr->mutex);
-	if (ar_ptr->treetop.lf == NULL && ar_ptr->treetop.rt == NULL) {//without inialization
-		if (mm.type = FROM_SPLIT) {
-			ar_ptr->treetop.lf = 
-		}
-		treeNode node;
-		node.wait_free = false;
+	//(void)mutex_lock(&ar_ptr->mutex);
+	
+	if (mm.type = FROM_SPLIT) {
+		node = find_tree_node(mem2chunk(mm.mm_ptr));
+		if (node == NULL)
+			node = &ar_ptr->treetop;
+		node->lf = (treeNode*)simple_malloc(sizeof(treeNode));
+		node->lf->chunk = mem2chunk(mm.mm_ptr);
+		node->lf->wait_free = false;
+		node->rt = (treeNode*)simple_malloc(sizeof(treeNode));
+		node->rt->chunk = remainder_chunk(mm.remainder_ptr);
+		node->rt->wait_free = false;
 	}
-	(void)mutex_unlock(&ar_ptr->mutex);
+	//(void)mutex_unlock(&ar_ptr->mutex);
 }
 void* simple_malloc(int bytes) {
 	return _malloc(bytes).mm_ptr;

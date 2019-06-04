@@ -1,3 +1,4 @@
 chunk对齐
 分支预测 __builtin_expect
 ptmalloc_init_minimal 参数初始化 各个参数还没看是什么意思
+为了加快便利 使用map

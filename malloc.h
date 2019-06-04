@@ -20,6 +20,7 @@ static int __malloc_initialized = 0;
 
 mm_info _malloc(int n);
 void* malloc(int n);
+void* simple_malloc(int bytes);
 void free(void* ptr);
 #define arena_for_chunk(ptr) \
  (chunk_non_main_arena(ptr) ? heap_for_ptr(ptr)->ar_ptr : &main_arena)

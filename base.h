@@ -63,6 +63,14 @@ typedef struct mm_info {
 	malloc_chunk *remainder_ptr;
 }mm_info;
 
+typedef struct treeNode {
+	treeNode* lf;
+	treeNode* rt;
+	mchunkptr chunk;
+	char wait_free;
+} treeNode;
+typedef treeNode* treeNodePtr;
+
 typedef struct malloc_state
 {
 	mutex_t mutex;
@@ -80,14 +88,6 @@ typedef struct malloc_state
 	INTERNAL_SIZE_T max_system_mem;
 }malloc_state;
 typedef malloc_state *mstate;
-
-typedef struct treeNode{
-	treeNode * lf;//叶子结点空间复用
-	treeNode * rt; 
-	mchunkptr chunk;
-	char wait_free;
-} treeNode;
-typedef treeNode* treeNodePtr;
 
 typedef struct malloc_par {
 	unsigned long trim_threshold;

@@ -6,7 +6,7 @@
 
 void test1() {
 	void* p, * q;
-	p = malloc(-1);
+	//p = malloc(-1);
 	if (p != NULL)
 		printf("malloc (-1) succeeded.");
 	q = malloc(10);
