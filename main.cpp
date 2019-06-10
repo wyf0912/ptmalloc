@@ -83,16 +83,15 @@ int main(void)
 {
 	void *p, *q,*m,*n;
 	pthread_t B;
-	p = malloc(200);
-	q = malloc(50);
-	pthread_create(&B, NULL, pthread_B, q);
-	m = malloc(50);
-	pthread_create(&B, NULL, pthread_B, m);
-	n = malloc(50);
-	pthread_create(&B, NULL, pthread_B, n);
-	q = malloc(60);
-	pthread_create(&B, NULL, pthread_B, q);
-
+	p = malloc(50);
 	free(p);
-	pthread_join(B, 0);
+	q = malloc(100);
+	free(q);
+	p = malloc(120);
+	free(p);
+	p = malloc(110);
+	free(p);
+	p = malloc(200);
+	free(p);
+	//pthread_join(B, 0);
 }
