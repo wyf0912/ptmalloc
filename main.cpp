@@ -2,7 +2,7 @@
 #include "malloc.h"
 #include <stdio.h>
 #include <pthread.h>
-
+#pragma comment(lib,"pthreadVC2.lib") 
 
 void test1() {
 	void* p, * q;
@@ -15,8 +15,10 @@ void test1() {
 	p = malloc(128);
 	if (p == NULL)
 		printf("malloc (10) failed.");
+	//_free(q);
+	_free(p);
 	free(q);
-	free(p);
+	//free(p);
 	p = malloc(0);
 	if (p == NULL)
 		printf("malloc (0) failed.");
@@ -27,10 +29,12 @@ void test1() {
 	if (q != NULL)
 		printf("malloc (-512K) succeeded.");
 	free(p);
+	free(q);
 }
-void *test2(void *) {
+void *test2(void*) {
 	void* ptrarr[20];
 	void* p,*q;
+
 	for (int i = 1; i < 6; i++) {
 		ptrarr[i] = malloc(50);
 	}
@@ -66,9 +70,29 @@ void test3() {
 	}
 }
 
+void *pthread_B(void*mem)
+{
+	//void* p, *q;
+	//p = malloc(100);
+	//q = malloc(50);
+	_free(mem);
+	//_free(q);
+}
+
 int main(void)
 {
-	printf("tesasdasdt");
-	test1();
-	return 0;
+	void *p, *q,*m,*n;
+	pthread_t B;
+	p = malloc(200);
+	q = malloc(50);
+	pthread_create(&B, NULL, pthread_B, q);
+	m = malloc(50);
+	pthread_create(&B, NULL, pthread_B, m);
+	n = malloc(50);
+	pthread_create(&B, NULL, pthread_B, n);
+	q = malloc(60);
+	pthread_create(&B, NULL, pthread_B, q);
+
+	free(p);
+	pthread_join(B, 0);
 }

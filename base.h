@@ -67,6 +67,7 @@ typedef struct treeNode {
 	treeNode* lf;
 	treeNode* rt;
 	mchunkptr chunk;
+	treeNode* father;
 	char wait_free;
 } treeNode;
 typedef treeNode* treeNodePtr;

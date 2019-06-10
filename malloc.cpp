@@ -1,6 +1,6 @@
 #include "malloc.h"
 #include <cerrno>
-#include <unistd.h>
+#include "unistd.h"
 #include "bins.h"
 #include <pthread.h>
 #include <assert.h>
@@ -131,6 +131,13 @@ static void malloc_consolidate(mstate av)
 	int             nextinuse;
 	mchunkptr       bck;
 	mchunkptr       fwd;
+
+	/***For tree node consolidate**/
+	treeNodePtr prev;
+	treeNodePtr next;
+	treeNodePtr current;
+
+
 	if (get_max_fast() != 0) {
 		clear_fastchunks(av);
 
@@ -162,6 +169,11 @@ static void malloc_consolidate(mstate av)
 					if (!prev_inuse(p)) {
 						prevsize = p->prev_size;
 						size += prevsize;
+
+						current = find_tree_node(p);
+						prev = find_tree_node(chunk_at_offset(p, -((long)prevsize)));
+						chunk_node_consolidate(prev, current);
+
 						p = chunk_at_offset(p, -((long)prevsize));
 						malloc_unlink(p, bck, fwd);
 					}
@@ -171,6 +183,11 @@ static void malloc_consolidate(mstate av)
 
 						if (!nextinuse) {
 							size += nextsize;
+
+							current = find_tree_node(p);
+							next = find_tree_node(nextchunk);
+							chunk_node_consolidate(current,next);
+
 							malloc_unlink(nextchunk, bck, fwd);
 						}
 						else
@@ -193,6 +210,11 @@ static void malloc_consolidate(mstate av)
 
 					else {
 						size += nextsize;
+
+						current = find_tree_node(p);
+						next = find_tree_node(av->top);
+						chunk_node_consolidate(current, next);
+
 						set_head(p, size | PREV_INUSE);
 						av->top = p;
 					}
@@ -874,6 +896,24 @@ static void _int_free(mstate av, mchunkptr p)
 	mchunkptr       bck;         /* misc temp for linking */
 	mchunkptr       fwd;         /* misc temp for linking */
 
+	treeNodePtr current;/*当前chunk的树节点*/
+	treeNodePtr father;/*当前chunk的父节点*/
+	treeNodePtr prev;/*当前chunk前一个chunk的树节点*/
+	treeNodePtr next;/*当前chunk后一个chunk的树节点*/
+	/*修改树等待释放标志位*/
+	current = find_tree_node(p);
+	if (current != NULL)
+	{
+		current->wait_free = false;
+		father = current->father;
+		while ((father!=NULL)&&(father->lf->wait_free == false) && (father->rt->wait_free == false))/*修改父辈节点等待释放标志位*/
+		{
+			father->wait_free = false;
+			current = current->father;
+			father = current->father;
+		}
+	}
+
 	const char* errstr = NULL;
 
 	size = chunksize(p);
@@ -956,8 +996,20 @@ static void _int_free(mstate av, mchunkptr p)
 		if (!prev_inuse(p)) {
 			prevsize = p->prev_size;
 			size += prevsize;
+
+			
+			prev=find_tree_node(chunk_at_offset(p, -((long)prevsize)));
+			current = find_tree_node(p);
+
+			/***合并对应chunk的树节点**********/
+			chunk_node_consolidate(prev, current);
+
 			p = chunk_at_offset(p, -((long)prevsize));
 			malloc_unlink(p, bck, fwd);
+
+			
+
+
 		}
 
 		if (nextchunk != av->top) {
@@ -966,6 +1018,10 @@ static void _int_free(mstate av, mchunkptr p)
 
 			/* consolidate forward */
 			if (!nextinuse) {
+
+				/***合并对应chunk的树节点**********/
+				chunk_node_consolidate(current, next);
+
 				malloc_unlink(nextchunk, bck, fwd);
 				size += nextsize;
 			}
@@ -1007,6 +1063,11 @@ static void _int_free(mstate av, mchunkptr p)
 		*/
 
 		else {
+			/******合并与top_chunk相邻的chunk对应的树节点******/
+			current = find_tree_node(p);
+			chunk_node_consolidate(current,find_tree_node(av->top));
+
+
 			size += nextsize;
 			set_head(p, size | PREV_INUSE);
 			av->top = p;
@@ -1035,6 +1096,7 @@ static void _int_free(mstate av, mchunkptr p)
 		munmap_chunk(p);
 	}
 }
+
 static void munmap_chunk(mchunkptr p)
 {
 	INTERNAL_SIZE_T size = chunksize(p);
@@ -1304,6 +1366,7 @@ static mchunkptr remainder_chunk(mchunkptr p) {
 	else
 		return p;
 }
+
 void* malloc(int bytes) {
 	mm_info mm;
 	mchunkptr p;
@@ -1323,19 +1386,28 @@ void* malloc(int bytes) {
 	if (mm.type = FROM_SPLIT) {
 		node = find_tree_node(mem2chunk(mm.mm_ptr));
 		if (node == NULL)
+		{
 			node = &ar_ptr->treetop;
+			node->father = NULL;
+		}
 		node->lf = (treeNode*)simple_malloc(sizeof(treeNode));
 		node->lf->chunk = mem2chunk(mm.mm_ptr);
 		node->lf->wait_free = false;
+		node->lf->father = node;
 		node->rt = (treeNode*)simple_malloc(sizeof(treeNode));
 		node->rt->chunk = remainder_chunk(mm.remainder_ptr);
 		node->rt->wait_free = false;
+		node->rt->father = node;
+		return mm.mm_ptr;
 	}
 	//(void)mutex_unlock(&ar_ptr->mutex);
 }
+
+
 void* simple_malloc(int bytes) {
 	return _malloc(bytes).mm_ptr;
 }
+
 mm_info _malloc(int bytes) {
 	mstate ar_ptr;
 	mm_info mm;
@@ -1508,10 +1580,38 @@ void public_fREe(void* mem)
 	(void)mutex_unlock(&ar_ptr->mutex);
 }
 
+/*更改释放标志位，并不真正释放*/
+void _free(void* mem)
+{
+	mstate ar_ptr;
+	mchunkptr p;                          /* chunk corresponding to mem */
+	treeNodePtr current;
+	if (mem == 0)                              /* free(0) has no effect */
+		return;
+	p = mem2chunk(mem);
+	current = find_tree_node(p);
+	if (current==NULL)                       /*当前chunk不在树中，返回 */
+	{
+		return;
+	}
+	current->wait_free = true;               /*更改请求释放的chunk在树中的等待释放标志位*/
+	if(current->father->wait_free==false)
+	{
+		while (current->father != NULL)      /*更改请求释放的chunk在树中父辈节点的等待释放标志位*/
+		{
+			current->father->wait_free = true;
+			current = current->father;
+		}
+	}
+}
+
+
 void free(void* mem)
 {
 	mstate ar_ptr;
 	mchunkptr p;                          /* chunk corresponding to mem */
+	treeNodePtr topNode;
+	treeNodePtr current;
 	if (mem == 0)                              /* free(0) has no effect */
 		return;
 	p = mem2chunk(mem);
@@ -1529,7 +1629,105 @@ void free(void* mem)
 		return;
 	}
 	ar_ptr = arena_for_chunk(p);
+
+	topNode = &ar_ptr->treetop;
+	current = topNode;
 	(void)mutex_lock(&ar_ptr->mutex);
 	_int_free(ar_ptr, p);
+
+	while (current->wait_free == true)
+	{
+		if ((current->lf == NULL) && (current->rt == NULL) && (current->wait_free == true))
+		{
+			_int_free(ar_ptr, current->chunk);
+			current = current->father;
+		}
+		else if (!(current->lf == NULL)&&(current->lf->wait_free==true))
+		{
+			current = current->lf;
+			continue;
+		}
+		else if (!(current->rt == NULL)&&(current->rt->wait_free==true))
+		{
+			current = current->rt;
+		}
+	}
+
 	(void)mutex_unlock(&ar_ptr->mutex);
+}
+
+
+void delete_node(treeNodePtr node)
+{
+	free(node);
+}
+
+bool chunk_is_brother(treeNodePtr p, treeNodePtr q)
+{
+	if ((p->father == q->father))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/*更改父辈节点的左右节点指向*/
+void change_node_father(treeNodePtr current)
+{
+	treeNodePtr father = current->father;
+	if (father == father->father->lf)
+	{
+		father->father->lf = current;
+	}
+	else if (father == father->father->rt)
+	{
+		father->father->rt = current;
+	}
+}
+
+/***************合并对应chunk的树节点**********************************/
+void chunk_node_consolidate(treeNodePtr fwd, treeNodePtr bck)
+{
+	treeNodePtr father;
+	if ((fwd == NULL) || (bck == NULL))
+	{
+		/***节点不在树中返回*****/
+		return;
+	}
+
+	/*合并的chunk对应的叶子节点是兄弟节点*/
+	if (chunk_is_brother(fwd,bck))
+	{
+		delete_node(bck);
+		/*合并后节点的父指针指向父亲节点的父亲节点，并删除多余父亲节点*/
+		change_node_father(fwd);
+		fwd->father =fwd->father->father;
+		delete_node(father);/*删除多余父亲节点*/
+		return;
+	}
+
+
+	/*合并的chunk叶子节点是父子辈关系*/
+	father = bck->father;
+	bck = NULL;
+	/*剩余兄弟节点变为父亲节点*/
+	if (father->lf != NULL)
+	{
+		change_node_father(father->lf);
+		father->lf->father = father->father;
+		
+	}
+	else if (father->rt != NULL)
+	{   
+		change_node_father(father->rt);
+		father->rt->father = father->father;/***/
+	}
+	/*删除多余父亲节点*/
+	delete_node(father);
+	/*删除被合并的节点*/
+	delete_node(bck);
+	return;
 }

@@ -22,6 +22,10 @@ mm_info _malloc(int n);
 void* malloc(int n);
 void* simple_malloc(int bytes);
 void free(void* ptr);
+void _free(void* ptr);
+static treeNodePtr find_tree_node(mchunkptr p);
+void chunk_node_consolidate(treeNodePtr fwd, treeNodePtr bck);
+
 #define arena_for_chunk(ptr) \
  (chunk_non_main_arena(ptr) ? heap_for_ptr(ptr)->ar_ptr : &main_arena)
 #define DEFAULT_MMAP_THRESHOLD (128 * 1024)
